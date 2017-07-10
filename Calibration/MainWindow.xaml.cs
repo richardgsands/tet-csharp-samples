@@ -114,7 +114,7 @@ namespace Calibration
                 return;
 
             if (cursorControl == null)
-                cursorControl = new CursorControl(activeScreen, true, true, 100); // Lazy initialization
+                cursorControl = new CursorControl(activeScreen, true, true, 100, 100); // Lazy initialization
             else
                 cursorControl.Enabled = !cursorControl.Enabled; // Toggle on/off
 
@@ -218,7 +218,8 @@ namespace Calibration.Cursor
 
         public bool Enabled { get; set; }
         public bool Smooth { get; set; }
-        public int MovePointerThreshold { get; set; }     // change in pointer position needed (in pixels) to trigger mouse move
+        public int MovePointerThresholdPos { get; set; }         // change in pointer position needed (in pixels) to trigger mouse move
+        public int MovePointerThresholdTime { get; set; }     // time at new position required to trigger mouse move
         public Screen ActiveScreen { get; set; }
 
         #endregion
@@ -229,13 +230,15 @@ namespace Calibration.Cursor
             : this(Screen.PrimaryScreen, false, false)
         { }
 
-        public CursorControl(Screen screen, bool enabled, bool smooth, int movePointerThreshold=0)
+        public CursorControl(Screen screen, bool enabled, bool smooth, int movePointerThresholdPos=0, int movePointerThresholdTime = 0)
         {
             GazeManager.Instance.AddGazeListener(this);
             ActiveScreen = screen;
             Enabled = enabled;
             Smooth = smooth;
-            MovePointerThreshold = movePointerThreshold;
+            MovePointerThresholdPos = movePointerThresholdPos;
+            MovePointerThresholdTime = movePointerThresholdTime;
+
         }
 
         #endregion
@@ -293,7 +296,7 @@ namespace Calibration.Cursor
             var norm = Math.Sqrt(Math.Pow(gX - last_gX, 2) + Math.Pow(gY - last_gY, 2));
             updateLastValues(gX, gY);
 
-            return (norm >= MovePointerThreshold);
+            return (norm >= MovePointerThresholdPos);
         }
 
         private void updateLastValues(float gX, float gY)
