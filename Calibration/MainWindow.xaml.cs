@@ -114,7 +114,7 @@ namespace Calibration
                 return;
 
             if (cursorControl == null)
-                cursorControl = new CursorControl(activeScreen, true, true); // Lazy initialization
+                cursorControl = new CursorControl(activeScreen, true, true, 100); // Lazy initialization
             else
                 cursorControl.Enabled = !cursorControl.Enabled; // Toggle on/off
 
@@ -218,6 +218,7 @@ namespace Calibration.Cursor
 
         public bool Enabled { get; set; }
         public bool Smooth { get; set; }
+        public int MovePointerThreshold { get; set; }     // change in pointer position needed (in pixels) to trigger mouse move
         public Screen ActiveScreen { get; set; }
 
         #endregion
@@ -228,12 +229,13 @@ namespace Calibration.Cursor
             : this(Screen.PrimaryScreen, false, false)
         { }
 
-        public CursorControl(Screen screen, bool enabled, bool smooth)
+        public CursorControl(Screen screen, bool enabled, bool smooth, int movePointerThreshold=0)
         {
             GazeManager.Instance.AddGazeListener(this);
             ActiveScreen = screen;
             Enabled = enabled;
             Smooth = smooth;
+            MovePointerThreshold = movePointerThreshold;
         }
 
         #endregion
@@ -243,7 +245,7 @@ namespace Calibration.Cursor
         public void OnGazeUpdate(GazeData gazeData)
         {
             if (!Enabled) return;
-            return;
+
             // start or stop tracking lost animation
             if ((gazeData.State & GazeData.STATE_TRACKING_GAZE) == 0 &&
                 (gazeData.State & GazeData.STATE_TRACKING_PRESENCE) == 0) return;
@@ -253,13 +255,51 @@ namespace Calibration.Cursor
             var y = ActiveScreen.Bounds.Y;
             var gX = Smooth ? gazeData.SmoothedCoordinates.X : gazeData.RawCoordinates.X;
             var gY = Smooth ? gazeData.SmoothedCoordinates.Y : gazeData.RawCoordinates.Y;
-            var screenX = (int)Math.Round(x + gX, 0);
-            var screenY = (int)Math.Round(y + gY, 0);
 
-            // return in case of 0,0 
-            if (screenX == 0 && screenY == 0) return;
+            if ( moveThresholdMet(gX, gY) )
+            {
+                // move cursor
 
-            NativeMethods.SetCursorPos(screenX, screenY);
+                var screenX = (int)Math.Round(x + gX, 0);
+                var screenY = (int)Math.Round(y + gY, 0);
+
+                // return in case of 0,0 
+                if (screenX == 0 && screenY == 0) return;
+
+                NativeMethods.SetCursorPos(screenX, screenY);
+
+            }
+
+        }
+
+        #endregion
+
+        #region Private helper methods
+
+        private bool init = false;
+        private float last_gX;
+        private float last_gY;
+
+        private bool moveThresholdMet(float gX, float gY)
+        {
+            // jump out if last values have not been set yet
+            if (!init)
+            {
+                updateLastValues(gX, gY);
+                init = true;
+                return true;
+            }
+
+            var norm = Math.Sqrt(Math.Pow(gX - last_gX, 2) + Math.Pow(gY - last_gY, 2));
+            updateLastValues(gX, gY);
+
+            return (norm >= MovePointerThreshold);
+        }
+
+        private void updateLastValues(float gX, float gY)
+        {
+            last_gX = gX;
+            last_gY = gY;
         }
 
         #endregion
