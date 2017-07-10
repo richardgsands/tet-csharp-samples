@@ -222,6 +222,8 @@ namespace Calibration.Cursor
         public int MovePointerThresholdTime { get; set; }     // time at new position required to trigger mouse move
         public Screen ActiveScreen { get; set; }
 
+        private const int CURSOR_ANIMATION_MS = 100;
+
         #endregion
 
         #region Constuctor
@@ -259,50 +261,35 @@ namespace Calibration.Cursor
             var gX = Smooth ? gazeData.SmoothedCoordinates.X : gazeData.RawCoordinates.X;
             var gY = Smooth ? gazeData.SmoothedCoordinates.Y : gazeData.RawCoordinates.Y;
 
-            if ( moveThresholdMet(gX, gY) )
-            {
-                // move cursor
+            var screenX = (int)Math.Round(x + gX, 0);
+            var screenY = (int)Math.Round(y + gY, 0);
 
-                var screenX = (int)Math.Round(x + gX, 0);
-                var screenY = (int)Math.Round(y + gY, 0);
+            // return in case of 0,0 
+            if (screenX == 0 && screenY == 0) return;
 
-                // return in case of 0,0 
-                if (screenX == 0 && screenY == 0) return;
-
-                NativeMethods.SetCursorPos(screenX, screenY);
-
-            }
+            handleNewScreenGazePosition(new System.Drawing.Point(screenX, screenY));
 
         }
 
         #endregion
 
         #region Private helper methods
+        private System.Drawing.Point lastPosition;
 
-        private bool init = false;
-        private float last_gX;
-        private float last_gY;
-
-        private bool moveThresholdMet(float gX, float gY)
+        private void handleNewScreenGazePosition(System.Drawing.Point position)
         {
-            // jump out if last values have not been set yet
-            if (!init)
+            lastPosition = System.Windows.Forms.Cursor.Position;
+            var norm = Math.Sqrt(Math.Pow(position.X - lastPosition.X, 2) + Math.Pow(position.Y - lastPosition.Y, 2));
+
+            if (norm >= MovePointerThresholdPos)
             {
-                updateLastValues(gX, gY);
-                init = true;
-                return true;
+                setCursorPosAnimate(position, lastPosition);
             }
-
-            var norm = Math.Sqrt(Math.Pow(gX - last_gX, 2) + Math.Pow(gY - last_gY, 2));
-            updateLastValues(gX, gY);
-
-            return (norm >= MovePointerThresholdPos);
         }
-
-        private void updateLastValues(float gX, float gY)
+    
+        private void setCursorPosAnimate(System.Drawing.Point position, System.Drawing.Point lastPosition)
         {
-            last_gX = gX;
-            last_gY = gY;
+            System.Windows.Forms.Cursor.Position = position;
         }
 
         #endregion
