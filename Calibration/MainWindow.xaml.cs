@@ -10,6 +10,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using EyeTribe.Controls.Calibration;
 //using EyeTribe.Controls.Cursor;
 using EyeTribe.Controls.TrackBox;
@@ -222,7 +223,8 @@ namespace Calibration.Cursor
         public int MovePointerThresholdTime { get; set; }     // time at new position required to trigger mouse move
         public Screen ActiveScreen { get; set; }
 
-        private const int CURSOR_ANIMATION_MS = 100;
+        private const int CURSOR_ANIMATION_DUR = 200;
+        private const int CURSOR_ANIMATION_INVL = 33;       // 30 fps
 
         #endregion
 
@@ -241,6 +243,8 @@ namespace Calibration.Cursor
             MovePointerThresholdPos = movePointerThresholdPos;
             MovePointerThresholdTime = movePointerThresholdTime;
 
+            cursorAnimationTimer.Interval = CURSOR_ANIMATION_INVL;
+            cursorAnimationTimer.Tick += new EventHandler(cursorAnimationTimerEventHandler);
         }
 
         #endregion
@@ -276,6 +280,11 @@ namespace Calibration.Cursor
         #region Private helper methods
         private System.Drawing.Point lastPosition;
 
+        private System.Windows.Forms.Timer cursorAnimationTimer = new System.Windows.Forms.Timer();
+        private System.Drawing.Point cursorAnimationTimerPositionGoal;
+        private System.Drawing.Point cursorAnimationTimerPositionCurrent;
+        private System.Drawing.Point cursorAnimationTimerPositionInterval;
+
         private void handleNewScreenGazePosition(System.Drawing.Point position)
         {
             lastPosition = System.Windows.Forms.Cursor.Position;
@@ -283,14 +292,41 @@ namespace Calibration.Cursor
 
             if (norm >= MovePointerThresholdPos)
             {
+                //System.Windows.Forms.Cursor.Position = position;
                 setCursorPosAnimate(position, lastPosition);
             }
         }
     
         private void setCursorPosAnimate(System.Drawing.Point position, System.Drawing.Point lastPosition)
         {
-            System.Windows.Forms.Cursor.Position = position;
+            int cursorAnimationSteps = Convert.ToInt32(CURSOR_ANIMATION_DUR / CURSOR_ANIMATION_INVL);
+
+            int cursorAnimationDeltaX = Convert.ToInt32((position.X - lastPosition.X) / cursorAnimationSteps);
+            int cursorAnimationDeltaY = Convert.ToInt32((position.Y - lastPosition.Y) / cursorAnimationSteps);
+
+            cursorAnimationTimer.Enabled = false;
+
+            cursorAnimationTimerPositionCurrent = lastPosition;
+            cursorAnimationTimerPositionGoal = position;
+            cursorAnimationTimerPositionInterval = new System.Drawing.Point(cursorAnimationDeltaX, cursorAnimationDeltaY);
+
+            cursorAnimationTimer.Enabled = true;
         }
+
+        private void cursorAnimationTimerEventHandler(Object timerObject, EventArgs timerEventArgs)
+        {
+            cursorAnimationTimerPositionCurrent.Offset(cursorAnimationTimerPositionInterval);
+
+            if (cursorAnimationTimerPositionCurrent.X > cursorAnimationTimerPositionGoal.X || cursorAnimationTimerPositionCurrent.Y > cursorAnimationTimerPositionGoal.Y)
+            {
+                cursorAnimationTimer.Enabled = false;
+                System.Windows.Forms.Cursor.Position = cursorAnimationTimerPositionGoal;
+                return;
+            }
+
+            System.Windows.Forms.Cursor.Position = cursorAnimationTimerPositionCurrent;
+        }
+
 
         #endregion
 
