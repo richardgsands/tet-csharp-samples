@@ -6,7 +6,7 @@
  *
  */
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.Threading;
 using System.Windows;
 using System.Windows.Forms;
@@ -115,7 +115,7 @@ namespace Calibration
                 return;
 
             if (cursorControl == null)
-                cursorControl = new CursorControl(activeScreen, true, true, 100, 100); // Lazy initialization
+                cursorControl = new CursorControl(activeScreen, true, true, 100, 500); // Lazy initialization
             else
                 cursorControl.Enabled = !cursorControl.Enabled; // Toggle on/off
 
@@ -283,9 +283,10 @@ namespace Calibration.Cursor
         #endregion
 
         #region Private helper methods
-        private System.Drawing.Point lastPosition;
-        private System.Drawing.Point newPosition;
-        private Queue lastPositions = new Queue(POSITION_BUFFER_SIZE);
+        private System.Drawing.Point currentGazePoint;
+        private System.Drawing.Point currentCursorPoint;
+        private System.Drawing.Point newCursorPoint;
+        private Queue<System.Drawing.Point> lastPositions = new Queue<System.Drawing.Point>(POSITION_BUFFER_SIZE);
 
         private System.Timers.Timer cursorAnimationTimer = new System.Timers.Timer();
         private System.Drawing.Point cursorAnimationTimerPositionGoal;
@@ -294,27 +295,58 @@ namespace Calibration.Cursor
 
         private System.Timers.Timer moveDelayTimer = new System.Timers.Timer();
 
-        private void handleNewScreenGazePosition(System.Drawing.Point position)
+        private void handleNewScreenGazePosition(System.Drawing.Point _currentGazePoint)
         {
-            lastPosition = System.Windows.Forms.Cursor.Position;
-            lastPositions.Enqueue(lastPosition);
+            // set global variables
+            currentGazePoint = _currentGazePoint;
+            currentCursorPoint = System.Windows.Forms.Cursor.Position;
+            lastPositions.Enqueue(currentCursorPoint);
             if (lastPositions.Count > POSITION_BUFFER_SIZE) lastPositions.Dequeue();
-            Console.WriteLine(lastPositions.Count);
-            var norm = Math.Sqrt(Math.Pow(position.X - lastPosition.X, 2) + Math.Pow(position.Y - lastPosition.Y, 2));
+            //Console.WriteLine(lastPositions.Count);
 
-
-
-            if (norm >= MovePointerThresholdPos)
+            if (moveDelayTimer.Enabled)
             {
-                moveDelayTimer.Enabled = true;
-                newPosition = position;
-                //setCursorPosAnimate(position, lastPosition);
+                // check if we have moved from vicinity of new cursor position
+                var norm = Math.Sqrt(Math.Pow(currentGazePoint.X - newCursorPoint.X, 2) + Math.Pow(currentGazePoint.Y - newCursorPoint.Y, 2));
+                if (norm >= MovePointerThresholdPos)
+                {
+                    // we have moved by a significant amount - restart timer with currentGazePoint
+                    Console.WriteLine("Restarting moveDelayTimer...");
+                    moveDelayTimer.Stop();
+                    newCursorPoint = currentGazePoint;
+                    moveDelayTimer.Start();
+                    //setCursorPosAnimate(position, lastPosition);
+                }
             }
+            else
+            {
+                // check if we have a material movement
+                var norm = Math.Sqrt(Math.Pow(currentGazePoint.X - currentCursorPoint.X, 2) + Math.Pow(currentGazePoint.Y - currentCursorPoint.Y, 2));
+                if (norm >= MovePointerThresholdPos)
+                {
+                    // we have moved by a significant amount - start timer
+                    Console.WriteLine("Starting moveDelayTimer...");
+                    moveDelayTimer.Stop();
+                    newCursorPoint = currentGazePoint;
+                    moveDelayTimer.Start();
+                    //setCursorPosAnimate(position, lastPosition);
+                }
+            }
+
+
         }
     
         private void moveDelayTimerEventHandler(Object timerObject, EventArgs timerEventArgs)
         {
-            System.Windows.Forms.Cursor.Position = newPosition;
+            Console.WriteLine("   > Handling moveDelayTimer");
+
+            // check we are still near the position when timer was started
+            var norm = Math.Sqrt(Math.Pow(currentGazePoint.X - newCursorPoint.X, 2) + Math.Pow(currentGazePoint.Y - newCursorPoint.Y, 2));
+            if (norm <= MovePointerThresholdPos)
+            {
+                System.Windows.Forms.Cursor.Position = currentGazePoint;
+            }
+            // otherwise do nothing
         }
 
         private void setCursorPosAnimate(System.Drawing.Point position, System.Drawing.Point lastPosition)
@@ -345,6 +377,23 @@ namespace Calibration.Cursor
             }
 
             System.Windows.Forms.Cursor.Position = cursorAnimationTimerPositionCurrent;
+        }
+
+        private void calcStatsForLastPositions(out float mean, out float stdev, int sampleCount=POSITION_BUFFER_SIZE)
+        {
+            System.Drawing.Point[] lastPositionsArray = lastPositions.ToArray();
+            int count = Math.Min( Math.Min(sampleCount, POSITION_BUFFER_SIZE), lastPositionsArray.GetLength(0) );
+            int sumX = 0;
+            int sumY = 0;
+
+            mean = 0;
+            stdev = 0;
+
+            for (int i=count-1; i<=count; i--)
+            {
+//                sumX += lastPositionsArray[].X;
+//                sumY += lastPositions.Y;
+            }
         }
 
 
